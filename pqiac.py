@@ -2,11 +2,12 @@
 """Put Quests in a Circle
 
 Usage:
-	pqiac [-n] <radius> <x> <y> <quest>...
-	pqiac [-n] [--arc] <count> <offset> <radius> <x> <y> <quest>...
+	pqiac [-n|-d] <radius> <x> <y> <quest>...
+	pqiac [-n|-d] [--arc] <count> <offset> <radius> <x> <y> <quest>...
 
 Options:
-	-n	Dry-run: print quest names and coordinates; doesn't alter files.
+	-n	dry-run: print quest names and coordinates; doesn't alter files.
+	-d  debug: print extra info; doesn't alter files 
 
 """
 
@@ -32,21 +33,45 @@ def setPosInQuest(questFile, pos):
 	
 if __name__ == "__main__":
 	args = docopt(__doc__, options_first = True)
+	dryrun = True if args['-n'] else False
+	debug = True if args['-d'] else False
+
+	quests_count = len(args['<quest>'])
+
+	if debug:
+		pprint(args)
 
 	if args['--arc']:
 		count = int(args['<count>'])
 		start = int(args['<offset>'])
 	else:
-		count = len(args['<quest>'])
+		count = quests_count
 		start = 0
 
-	points = cycle(pointsInCircle(int(args['<x>']), int(args['<y>']), int(args['<radius>']), count))
+	if count == 0:
+		count = quests_count
 
-	for _ in range(start):
-		next(points) 
+	points = pointsInCircle(int(args['<x>']), int(args['<y>']), int(args['<radius>']), count)
+	circle = cycle(points)
 
-	for quest in args['<quest>']:
-		if args['-n']:
-			print(quest, next(points))
-		else:
-			setPosInQuest(quest, next(points))
+	# Fixed cycle of circle points, with a shifted loop of quests
+	# Done this way so print-out (-n or -d options) matches model of ultimate result.
+
+	quests = cycle(args['<quest>'] + [None]*(count-quests_count))
+	for _ in range((count - start) % count):
+		next(quests)
+
+	for _ in range(count):
+		q = next(quests)
+		p = next(circle)
+		if dryrun or debug:
+			print(p, q)
+		elif q:
+			setPosInQuest(q, p)
+
+# Original, straight-forward way:
+#	for _ in range(start):
+#		next(circle) #if not debug else print(next(circle))
+#		
+#	for quest in args['<quest>']:
+#		setPosInQuest(quest, next(circle)) if not dryrun else print(next(circle), quest)
