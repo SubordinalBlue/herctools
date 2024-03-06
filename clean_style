@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 # Convert "<hr/>" to "---"
 perl -pe 's|"<hr\/>"|"---"|' -i *json
