@@ -2,12 +2,11 @@
 """Put Quests in a Circle
 
 Usage:
-	pqiac [-n | -d] <radius> <x> <y> <quest>...
-	pqiac [-n | -d] arc <count> <offset> <radius> <x> <y> <quest>...
+	pqiac [-n] <radius> <x> <y> <quest>...
+	pqiac [-n] [--arc] <count> <offset> <radius> <x> <y> <quest>...
 
 Options:
 	-n	Dry-run: print quest names and coordinates; doesn't alter files.
-	-d	Debug: print args and quit
 
 """
 
@@ -34,20 +33,16 @@ def setPosInQuest(questFile, pos):
 if __name__ == "__main__":
 	args = docopt(__doc__, options_first = True)
 
-	if args['-d']:
-		pprint(args)
-		exit()
-
-	if args['arc']:
-		n = int(args['<count>'])
-		offset = int(args['<offset>'])
+	if args['--arc']:
+		count = int(args['<count>'])
+		start = int(args['<offset>'])
 	else:
-		n = len(args['<quest>'])
-		offset = 0
+		count = len(args['<quest>'])
+		start = 0
 
-	points = cycle(pointsInCircle(int(args['<x>']), int(args['<y>']), int(args['<radius>']), n))
+	points = cycle(pointsInCircle(int(args['<x>']), int(args['<y>']), int(args['<radius>']), count))
 
-	for _ in range(offset):
+	for _ in range(start):
 		next(points) 
 
 	for quest in args['<quest>']:
