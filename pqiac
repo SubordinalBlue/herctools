@@ -23,20 +23,12 @@ pi = math.pi
 def pointsInCircle(x=0, y=0, r=100, n=10):
 	return [(round(x+(math.cos(2*pi/n*i)*r)), round(y+(math.sin(2*pi/n*i)*r))) for i in range(0,n)]
 
+# original sPIQ def
 def setPosInQuest(questFile, pos):
 	posPattern = r'\[\s+-?\d+,\n?\s+-?\d+\n?\s+\]'
 	with open(questFile, 'r+') as file:
 		text = file.read()
-		text = re.sub(posPattern, f'{pos[0]}, {pos[1]}', text)
-		file.seek(0,0)
-		file.write(text)
-		file.truncate()
-	
-def setPosInQuest(questFile, pos):
-	with open(questFile, 'r+') as file:
-		data = json.load(file)
-		#text = re.sub(posPattern, f'{pos[0]}, {pos[1]}', text)
-		list(data['display']['groups'].values())[0]['position']
+		text = re.sub(posPattern, f'{pos[0]},\n\t{pos[1]}', text)
 		file.seek(0,0)
 		file.write(text)
 		file.truncate()
