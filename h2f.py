@@ -46,7 +46,31 @@ def convertCoord(n):
 def convertCoords(coords):
 	return list(map(convertCoord, coords))
 
-def convertHeraclesQuest(hercName, hercGroup, hercData):
+def convertTask(taskName, hercTask):
+	ftbqTask = {}
+	ftbqTask['id'] = getID(taskName)
+	# prob. need to check for existence first?
+	#ftbqTask['icon']['id'] = hercTask['icon']['item']['id']
+	# Other common possibilities: title, subtitle(?), icon
+	match hercTask['type']:
+		case 'heracles:item':
+			ftbqTask['type'] = 'item'
+			ftbqTask['item'] = hercTask['item']
+			ftbqTask['count'] = hercTask['amount']
+		case 'heracles:check':
+			ftbqTask['type'] = 'checkmark'
+		case 'heracles:xp':
+			ftbqTask['type'] = 'xp'
+			match hercTask['xptype']:
+				case 'POINTS':
+					ftbqTask['value'] = '1L'
+				case 'LEVEL':
+					ftbqTask['value'] = str(hercTask['amount']) + 'L'
+		case _:
+			print(f"Oopsie: I don't yet understand {hercTask['type']}")
+			exit()
+
+def convertQuest(hercName, hercGroup, hercData):
 	quest = {}
 		
 	quest['id'] = getID(hercName)
@@ -60,6 +84,11 @@ def convertHeraclesQuest(hercName, hercGroup, hercData):
 	tasks = [ task ]
 	quest['tasks'] = tasks
 
+	ftbqTasks = []
+	hercTasks = hercData['tasks']
+	for taskName in hercTasks.keys():
+		ftbqTasks.append(convertTask(taskName, hercTasks[taskName]))
+
 	quest['x'], quest['y'] = convertCoords(hercData['display']['groups'][hercGroup]['position'])
 
 	return quest	
@@ -71,7 +100,7 @@ def checkAssumptions(hercName, hercData):
 		print(f"Oops: {hercName} has multiple groups")
 		exit()
 
-def convertHeraclesChapter():
+def convertChapter():
 	ftbqData = {}
 	ftbqData['quests'] = []
 
@@ -81,7 +110,7 @@ def convertHeraclesChapter():
 		checkAssumptions(hercName, hercData)
 
 		hercGroup = list(hercData['display']['groups'].keys())[0]
-		ftbqData['quests'].append(convertHeraclesQuest(hercName, hercGroup, hercData))
+		ftbqData['quests'].append(convertQuest(hercName, hercGroup, hercData))
 	
 	ftbqData['default_hide_dependency_lines'] = 'false'
 	ftbqData['default_quest_shape'] = ''
@@ -114,7 +143,7 @@ def main():
 	if args.d:
 		load_IDdict(args.d)
 		
-	output(convertHeraclesChapter())
+	output(convertChapter())
 		
 	if args.o:
 		print_IDdict()
