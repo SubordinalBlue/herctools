@@ -12,7 +12,7 @@ parser.add_argument('-s', help='Output SNBT', action='store_true')
 parser.add_argument('-v', help='Print extra debug info', action='store_true')
 args = parser.parse_args()
 
-def err(thing):
+def mesg(thing):
 	if args.v:
 		print(thing)
 
@@ -107,7 +107,7 @@ def convertTasks(hercTasks):
 	ftbqTasks = []
 	for name, task in hercTasks.items():
 		ftbqTasks.append(convertTask(name, task))
-		err(ftbqTasks)
+		mesg(ftbqTasks)
 	return ftbqTasks
 
 def convertRewards(hercRewards):
