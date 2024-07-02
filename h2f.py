@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import os, re, json, argparse
+import re, json, random, argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("HERC_QUESTS", nargs='+', help='all Heracles quest files in a chapter')
@@ -16,19 +16,31 @@ def mesg(thing):
 	if args.v:
 		print(thing)
 
-# IDs are random 8 byte hex values, as strings ( Globals?! Baguette! )
-IDdict = {}		# { name: id }
-IDset = set()	# set of ids
+def applyReplacements(replacements, text):
+	'''replacements is a list of pattern and replacement tuples'''
+	for pat, repl in replacements:
+		text = re.sub(pat, repl, text)
+	return text
 
-def newID(id):
-	while((id == 0) or (id in IDset)):
-		id = os.urandom(8).hex().upper()
-	IDset.add(id)
+IDdict = {}	# { name: id }, IDs are random 8 byte hex values, as strings
+maxID = 2**64 - 1
+
+def _newID(id):
+	while (id == 0) or (id in IDdict.values()):
+		bytesID = random.randbytes(8)
+		while bytesID[0] > 127:
+			bytesID = random.randbytes(8)
+		id = bytesID.hex().upper()
+		#id = random.randbytes(8).hex().upper()
 	return id
+
+def newID():
+	IDdict['-'] = _newID(0)
+	return IDdict['-']
 	
 def getID(name):
 	if name not in IDdict:
-		IDdict[name] = newID(0)
+		IDdict[name] = _newID(0)
 	return IDdict[name]
 
 def print_IDdict():
@@ -39,7 +51,7 @@ def load_IDdict(dict_file):
 	for line in dict_file.readlines():
 		id, name = line.split(' ', 1)
 		IDdict[name.strip()] = id
-		IDset.add(id)
+		#IDset.add(id)
 
 # The Meat of the Matter
 
@@ -51,7 +63,7 @@ def convertCoords(coords):
 
 def convertTask(taskName, hercTask):
 	ftbqTask = {}
-	ftbqTask['id'] = getID(taskName)
+	ftbqTask['id'] = newID() #getID(taskName)
 	# prob. need to check for existence first?
 	#ftbqTask['icon']['id'] = hercTask['icon']['item']['id']
 	# Other common possibilities: title, subtitle(?), icon
@@ -78,14 +90,17 @@ def convertTask(taskName, hercTask):
 
 def convertReward(rewardName, hercReward):
 	ftbqReward = {}
-	ftbqReward['id'] = getID(rewardName)
+	ftbqReward['id'] = newID() #getID(rewardName)
 	match hercReward['type']:
 		case 'heracles:item':
 			ftbqReward['type'] = 'item'
 			ftbqReward['item'] = {}
 			ftbqReward['item']['id'] = hercReward['item']['id']
-			ftbqReward['item']['count'] = 1
-			ftbqReward['count'] = hercReward['item']['count']
+			if 1 < hercReward['item']['count']:
+				ftbqReward['item']['count'] = 1
+				ftbqReward['count'] = hercReward['item']['count']
+			else:
+				ftbqReward['item']['count'] = hercReward['item']['count']
 			#ftbqReward['item']['count'] = hercReward['item']['count']
 			
 		case 'heracles:xp':
@@ -116,6 +131,17 @@ def convertRewards(hercRewards):
 		ftbqRewards.append(convertReward(name, reward))
 	return ftbqRewards
 
+def filterHermes(line):
+	replacements = [
+		(r'<.*>', ''),
+		(r'', '')
+		]
+	return applyReplacements(replacements, line)
+	#return re.sub(r'<.*>', '', line)
+
+def convertDescription(hercDesc):
+	return list(map(filterHermes, hercDesc))
+
 def convertQuest(hercName, hercGroup, hercData):
 	quest = {}
 	quest['id'] = getID(hercName)
@@ -123,6 +149,7 @@ def convertQuest(hercName, hercGroup, hercData):
 	quest['dependencies'] = list(map(getID, hercData['dependencies']))
 	quest['tasks'] = convertTasks(hercData['tasks'])
 	quest['rewards'] = convertRewards(hercData['rewards'])
+	quest['description'] = convertDescription(hercData['display']['description'])
 	quest['x'], quest['y'] = convertCoords(hercData['display']['groups'][hercGroup]['position'])
 	#print(hercName, hercData['settings']['showDependencyArrow'])
 	if not hercData['settings']['showDependencyArrow']:
@@ -168,10 +195,12 @@ def output(ftbqData):
 			(r',\n', '\n'),					# remove trailing commas
 			(r'"(\w+)":', r'\1:'),			# unquote keys
 			(r'"(-?\d+\.?\d*d)"', r'\1'),	# unquote numerical values
-			(r'"((?:true|false))"', r'\1')	# unquote boolean values
+			(r'"((?:true|false))"', r'\1'),	# unquote boolean values
+			(r'(dependencies: \[)\n\s+("[A-F\d]{16}")\n\s+(\],?)\n', r'\1\2\3\n'),
 			]
-		for pat,repl in replacements:
-			output = re.sub(pat,repl,output)
+		output = applyReplacements(replacements, output)
+		#for pat,repl in replacements:
+		#	output = re.sub(pat,repl,output)
 
 		print(output)
 
