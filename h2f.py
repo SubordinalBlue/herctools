@@ -12,19 +12,23 @@ parser.add_argument('-s', help='Output SNBT', action='store_true')
 parser.add_argument('-v', help='Print extra debug info', action='store_true')
 args = parser.parse_args()
 
+def err(thing):
+	if args.v:
+		print(thing)
 
 # IDs are random 8 byte hex values, as strings ( Globals?! Baguette! )
 IDdict = {}		# { name: id }
 IDset = set()	# set of ids
 
 def newID(id):
-	while(id == 0 or id not in IDset):
+	while((id == 0) or (id in IDset)):
 		id = os.urandom(8).hex().upper()
-		IDset.add(id)
+	IDset.add(id)
 	return id
 	
 def getID(name):
-	IDdict[name] = IDdict.get(name, newID(0))
+	if name not in IDdict:
+		IDdict[name] = newID(0)
 	return IDdict[name]
 
 def print_IDdict():
@@ -35,8 +39,7 @@ def load_IDdict(dict_file):
 	for line in dict_file.readlines():
 		id, name = line.split(' ', 1)
 		IDdict[name.strip()] = id
-		IDset.add(id)		
-
+		IDset.add(id)
 
 # The Meat of the Matter
 
@@ -55,11 +58,13 @@ def convertTask(taskName, hercTask):
 	match hercTask['type']:
 		case 'heracles:item':
 			ftbqTask['type'] = 'item'
-			ftbqTask['item'] = hercTask['item']
-			ftbqTask['count'] = hercTask['amount']
+			ftbqTask['item'] = {}
+			ftbqTask['item']['id'] = hercTask['item']
+			ftbqTask['item']['count'] = hercTask['amount']
 		case 'heracles:check':
 			ftbqTask['type'] = 'checkmark'
 		case 'heracles:xp':
+			# double check this against Heracles XP Task
 			ftbqTask['type'] = 'xp'
 			match hercTask['xptype']:
 				case 'POINTS':
@@ -67,34 +72,65 @@ def convertTask(taskName, hercTask):
 				case 'LEVEL':
 					ftbqTask['value'] = str(hercTask['amount']) + 'L'
 		case _:
-			print(f"Oopsie: I don't yet understand {hercTask['type']}")
+			print(f"Oopsie: I don't yet understand the task type, {hercTask['type']}")
 			exit()
+	return ftbqTask
+
+def convertReward(rewardName, hercReward):
+	ftbqReward = {}
+	ftbqReward['id'] = getID(rewardName)
+	match hercReward['type']:
+		case 'heracles:item':
+			ftbqReward['type'] = 'item'
+			ftbqReward['item'] = {}
+			ftbqReward['item']['id'] = hercReward['item']['id']
+			ftbqReward['item']['count'] = 1
+			ftbqReward['count'] = hercReward['item']['count']
+			#ftbqReward['item']['count'] = hercReward['item']['count']
+			
+		case 'heracles:xp':
+			match hercReward['xptype']:
+				case 'POINTS':
+					ftbqReward['type'] = 'xp'
+					ftbqReward['value'] = str(hercReward['amount']) + 'L'
+				case 'LEVEL':
+					ftbqReward['type'] = 'xp_levels'
+					ftbqReward['xp_levels'] = hercReward['amount']
+				case _:
+					print(f"Oopsie: problem converting Reward, {rewardName}")
+		case _:
+			print(f"Oopsie: I don't yet understand the reward type, {hercReward['type']}")
+			exit()
+	return ftbqReward
+
+def convertTasks(hercTasks):
+	ftbqTasks = []
+	for name, task in hercTasks.items():
+		ftbqTasks.append(convertTask(name, task))
+		err(ftbqTasks)
+	return ftbqTasks
+
+def convertRewards(hercRewards):
+	ftbqRewards = []
+	for name, reward in hercRewards.items():
+		ftbqRewards.append(convertReward(name, reward))
+	return ftbqRewards
 
 def convertQuest(hercName, hercGroup, hercData):
 	quest = {}
-		
 	quest['id'] = getID(hercName)
 	quest['title'] = hercData['display']['title']['translate']
 	quest['dependencies'] = list(map(getID, hercData['dependencies']))
-
-	# For Inno's layouts, use the quest icon as the only task
-	itemID = hercData['display']['icon']['item']['id']
-	item = { 'id': itemID, 'count': 1 }
-	task = { 'type': 'item', 'id': getID(itemID), 'item': item, 'count': 1 }
-	tasks = [ task ]
-	quest['tasks'] = tasks
-
-	ftbqTasks = []
-	hercTasks = hercData['tasks']
-	for taskName in hercTasks.keys():
-		ftbqTasks.append(convertTask(taskName, hercTasks[taskName]))
-
+	quest['tasks'] = convertTasks(hercData['tasks'])
+	quest['rewards'] = convertRewards(hercData['rewards'])
 	quest['x'], quest['y'] = convertCoords(hercData['display']['groups'][hercGroup]['position'])
-
-	return quest	
+	#print(hercName, hercData['settings']['showDependencyArrow'])
+	if not hercData['settings']['showDependencyArrow']:
+		quest['hide_dependency_lines'] = 'true'
+	return quest
 
 def checkAssumptions(hercName, hercData):
-	# Assumption 1: Heracles' quests are in only one group
+	# Assumption 1: Input Heracles' quests are in only one group
 	groups = hercData['display']['groups']
 	if len(groups) > 1:
 		print(f"Oops: {hercName} has multiple groups")
@@ -102,16 +138,15 @@ def checkAssumptions(hercName, hercData):
 
 def convertChapter():
 	ftbqData = {}
-	ftbqData['quests'] = []
 
+	ftbqData['quests'] = []
 	for hercQuestFile in args.HERC_QUESTS:
 		hercName = hercQuestFile.removesuffix('.json')
 		hercData = json.load(open(hercQuestFile))
 		checkAssumptions(hercName, hercData)
-
 		hercGroup = list(hercData['display']['groups'].keys())[0]
 		ftbqData['quests'].append(convertQuest(hercName, hercGroup, hercData))
-	
+
 	ftbqData['default_hide_dependency_lines'] = 'false'
 	ftbqData['default_quest_shape'] = ''
 	ftbqData['filename'] = hercGroup
@@ -130,9 +165,10 @@ def output(ftbqData):
 	if args.s:
 		# Print as SNBT
 		replacements = [
-			(r',$', ''),					# remove trailing commas
+			(r',\n', '\n'),					# remove trailing commas
 			(r'"(\w+)":', r'\1:'),			# unquote keys
-			(r'"(-?\d+\.?\d*d)"', r'\1')	# unquote numerical values
+			(r'"(-?\d+\.?\d*d)"', r'\1'),	# unquote numerical values
+			(r'"((?:true|false))"', r'\1')	# unquote boolean values
 			]
 		for pat,repl in replacements:
 			output = re.sub(pat,repl,output)
