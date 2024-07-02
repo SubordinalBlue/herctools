@@ -134,7 +134,9 @@ def convertRewards(hercRewards):
 def filterHermes(line):
 	replacements = [
 		(r'<.*>', ''),
-		(r'', '')
+		(r'&&', r'&'),
+		(r'/([abcdef\d])/([\w ]+)/\1/', r'&\1\2&r')
+		#(r'/b/([\w ]+)/b/', r'&i\1&r')
 		]
 	return applyReplacements(replacements, line)
 	#return re.sub(r'<.*>', '', line)
