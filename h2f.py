@@ -6,7 +6,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("HERC_QUESTS", nargs='+', help='all Heracles quest files in a chapter')
 parser.add_argument('-d', help='Use {id:name} dict, D', type=argparse.FileType('r'))
 parser.add_argument('-o', help='Print {id:name} dict to stdout', action='store_true')
-#parser.add_argument('-o', help='Print {id:name} dict to stdout', nargs='?', type=argparse.FileType('w'), const=sys.stdout, default=False)
+parser.add_argument('-k', help="Convert from Inno's 'just an icon' style", action='store_true')
 parser.add_argument('-j', help='Output JSON', action='store_true')
 parser.add_argument('-s', help='Output SNBT', action='store_true')
 parser.add_argument('-v', help='Print extra debug info', action='store_true')
@@ -64,9 +64,7 @@ def convertCoords(coords):
 def convertTask(taskName, hercTask):
 	ftbqTask = {}
 	ftbqTask['id'] = newID() #getID(taskName)
-	# prob. need to check for existence first?
-	#ftbqTask['icon']['id'] = hercTask['icon']['item']['id']
-	# Other common possibilities: title, subtitle(?), icon
+
 	match hercTask['type']:
 		case 'heracles:item':
 			ftbqTask['type'] = 'item'
@@ -149,7 +147,17 @@ def convertQuest(hercName, hercGroup, hercData):
 	quest['id'] = getID(hercName)
 	quest['title'] = hercData['display']['title']['translate']
 	quest['dependencies'] = list(map(getID, hercData['dependencies']))
-	quest['tasks'] = convertTasks(hercData['tasks'])
+
+	if args.k:
+		# For Inno's 'just an icon' style starting templates, use the quest icon as the only task
+		itemID = hercData['display']['icon']['item']['id']
+		item = { 'id': itemID, 'count': 1 }
+		task = { 'type': 'item', 'id': getID(hercName), 'item': item }
+		tasks = [ task ]
+		quest['tasks'] = tasks
+	else:
+		quest['tasks'] = convertTasks(hercData['tasks'])
+
 	quest['rewards'] = convertRewards(hercData['rewards'])
 	quest['description'] = convertDescription(hercData['display']['description'])
 	quest['x'], quest['y'] = convertCoords(hercData['display']['groups'][hercGroup]['position'])
